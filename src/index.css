@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+  
+  .font-mono, code, pre {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Light / Bright Mode Guarantee: All sensor names, headings, labels, subtitles, and readouts strictly solid black #000000 */
+html:not(.dark) {
+  color: #000000 !important;
+}
+
+html:not(.dark) h1,
+html:not(.dark) h2,
+html:not(.dark) h3,
+html:not(.dark) h4,
+html:not(.dark) .sensor-name,
+html:not(.dark) .sensor-heading,
+html:not(.dark) .sensor-subheading,
+html:not(.dark) .sensor-badge,
+html:not(.dark) .sensor-value,
+html:not(.dark) .sensor-threshold,
+html:not(.dark) .bright-mode-black {
+  color: #000000 !important;
+}
+
+/* Force grey text classes to crisp solid black in bright mode */
+html:not(.dark) .text-slate-400,
+html:not(.dark) .text-slate-500,
+html:not(.dark) .text-slate-600,
+html:not(.dark) .text-gray-400,
+html:not(.dark) .text-gray-500,
+html:not(.dark) .text-zinc-400,
+html:not(.dark) .text-zinc-500 {
+  color: #000000 !important;
+}
+
+html:not(.dark) .sensor-badge {
+  background-color: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+  color: #000000 !important;
+}
+
+/* Bright green eco-glow utilities */
+.glow-emerald {
+  box-shadow: 0 0 25px -3px rgba(16, 185, 129, 0.25), 0 0 10px -2px rgba(16, 185, 129, 0.2);
+}
+
+.glow-emerald-strong {
+  box-shadow: 0 0 35px 2px rgba(16, 185, 129, 0.35), 0 0 15px 0px rgba(52, 211, 153, 0.25);
+}
+
+.text-glow-emerald {
+  text-shadow: 0 0 12px rgba(16, 185, 129, 0.5);
+}
+
+/* Visual Alert Keyframes & Animations for Sensor Gauges exceeding safe limits */
+@keyframes gentleAlertShake {
+  0%, 75%, 100% {
+    transform: translateX(0) rotate(0deg);
+  }
+  78% {
+    transform: translateX(-3.5px) rotate(-0.35deg);
+  }
+  82% {
+    transform: translateX(3.5px) rotate(0.35deg);
+  }
+  86% {
+    transform: translateX(-2.5px) rotate(-0.2deg);
+  }
+  90% {
+    transform: translateX(2.5px) rotate(0.2deg);
+  }
+  94% {
+    transform: translateX(-1px) rotate(0deg);
+  }
+}
+
+.animate-alert-shake {
+  animation: gentleAlertShake 3.2s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite;
+}
+
+@keyframes alertPulseAmber {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0), inset 0 0 0 0 rgba(245, 158, 11, 0);
+    border-color: rgba(245, 158, 11, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 22px 3px rgba(245, 158, 11, 0.35), inset 0 0 14px 0 rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.95);
+  }
+}
+
+.alert-pulse-warning {
+  animation: alertPulseAmber 2s ease-in-out infinite, gentleAlertShake 3.2s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite !important;
+}
+
+@keyframes alertPulseRed {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0), inset 0 0 0 0 rgba(239, 68, 68, 0);
+    border-color: rgba(239, 68, 68, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 26px 4px rgba(239, 68, 68, 0.45), inset 0 0 18px 0 rgba(239, 68, 68, 0.18);
+    border-color: rgba(239, 68, 68, 0.98);
+  }
+}
+
+.alert-pulse-danger {
+  animation: alertPulseRed 1.6s ease-in-out infinite, gentleAlertShake 3.2s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite !important;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.25);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 185, 129, 0.5);
+}

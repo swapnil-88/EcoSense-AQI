@@ -1,0 +1,6 @@
+{
+  "name": "EcoSense Live AQI Dashboard",
+  "description": "Real-time Air Quality Index monitoring dashboard with bright green eco-aesthetic, live 5-second sensor polling, half-circle gas gauges for CO2, CO, and NO2, and rolling line graphs for Temperature and Humidity.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

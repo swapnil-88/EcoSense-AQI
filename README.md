@@ -1,11 +1,34 @@
-<div align="center">
+# EcoSense AQI Dashboard
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+Real-time Air Quality Index (AQI) monitoring dashboard featuring half-circle gas gauges (CO₂, CO, NO₂) with fluid easing transitions and visual alerts (pulse & gentle shake animations on safe limit violations), rolling line charts for Temperature and Humidity with integer Y-axis and 2-decimal hover tooltips, and Start/Stop controls.
 
-  <h1>Built with AI Studio</h2>
+---
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## How to Run on Your System After Downloading
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+You have **two simple ways** to run this dashboard:
 
-</div>
+### Method 1: Instant Zero-Dependency Run (No Node.js or Installation Needed)
+If you do not have Node.js or prefer not to install any dependencies:
+1. Double-click **`standalone.html`** in this folder (or right-click -> Open with Chrome / Edge / Firefox / Safari).
+2. The dashboard will run immediately with 100% functionality:
+   - Full live 5-second polling loop & simulation fallback
+   - Half-circle gas gauges with animated needles
+   - Safe limit visual alerts (shake & pulse)
+   - Temperature & Humidity rolling line charts with whole-number Y-axis & 2-decimal hover tooltips
+   - Start/Stop Dashboard controls
+   - Bright Mode / Dark Mode toggle
+
+---
+
+### Method 2: Standard React Application (Node.js)
+All unnecessary dependencies have been removed. The repository contains only the lean essentials:
+1. Open terminal in this folder and install dependencies:
+   ```bash
+   npm install
+   ```
+2. Start the local development server:
+   ```bash
+   npm run dev
+   ```
+3. Open your browser at **`http://localhost:3000`**.

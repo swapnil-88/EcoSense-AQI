@@ -1,0 +1,16 @@
+# GitHub Linguist Overrides
+# Force GitHub to detect HTML, CSS, and standalone files in the repository language stats bar
+
+*.html linguist-detectable=true
+*.css linguist-detectable=true
+*.ts linguist-detectable=true
+*.tsx linguist-detectable=true
+
+# Ensure standalone and public files are not treated as vendored/ignored
+standalone.html linguist-detectable=true linguist-vendored=false
+public/standalone.html linguist-detectable=true linguist-vendored=false
+
+# Ignore lockfiles and build outputs from language statistics
+bun.lock linguist-vendored=true
+package-lock.json linguist-vendored=true
+dist/** linguist-vendored=true

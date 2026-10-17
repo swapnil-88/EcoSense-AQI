@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Real-Time Air Quality Index (AQI) Dashboard</title>
+  <meta name="description" content="Live Real-Time AQI Monitoring Dashboard - All 5 Readings in Single Screen with Start/Stop Control" />
+  
+  <!-- Google Fonts: Plus Jakarta Sans for UI, JetBrains Mono for tabular metrics -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            slate: {
+              950: '#090d16',
+              900: '#0f172a',
+              850: '#131e36',
+              800: '#1e293b',
+            }
+          },
+          boxShadow: {
+            'eco-glow': '0 0 20px -3px rgba(16, 185, 129, 0.35)',
+            'eco-card': '0 4px 16px -2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(16, 185, 129, 0.12)',
+            'eco-card-hover': '0 6px 24px -3px rgba(16, 185, 129, 0.25), 0 0 0 1px rgba(16, 185, 129, 0.35)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    .glow-text {
+      text-shadow: 0 0 12px rgba(16, 185, 129, 0.6);
+    }
+    .pulse-ring {
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      animation: pulsing 2s infinite;
+    }
+    @keyframes pulsing {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+      70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    /* Light / Bright Mode Guarantee: All sensor names, headings, labels and readouts strictly solid black #000000 */
+    html:not(.dark) {
+      color: #000000 !important;
+    }
+
+    html:not(.dark) h1,
+    html:not(.dark) h2,
+    html:not(.dark) h3,
+    html:not(.dark) h4,
+    html:not(.dark) .sensor-name,
+    html:not(.dark) .sensor-heading,
+    html:not(.dark) .sensor-subheading,
+    html:not(.dark) .sensor-badge,
+    html:not(.dark) .sensor-value,
+    html:not(.dark) .sensor-threshold {
+      color: #000000 !important;
+    }
+
+    html:not(.dark) .sensor-badge {
+      background-color: #f1f5f9 !important;
+      border-color: #94a3b8 !important;
+      color: #000000 !important;
+    }
+
+    /* Visual Alert Animations for Sensor Gauges exceeding safe limits */
+    @keyframes gentleAlertShake {
+      0%, 75%, 100% { transform: translateX(0) rotate(0deg); }
+      78% { transform: translateX(-3.5px) rotate(-0.35deg); }
+      82% { transform: translateX(3.5px) rotate(0.35deg); }
+      86% { transform: translateX(-2.5px) rotate(-0.2deg); }
+      90% { transform: translateX(2.5px) rotate(0.2deg); }
+      94% { transform: translateX(-1px) rotate(0deg); }
+    }
+    .animate-alert-shake {
+      animation: gentleAlertShake 3.2s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite;
+    }
+    @keyframes alertPulseAmber {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0), inset 0 0 0 0 rgba(245, 158, 11, 0);
+        border-color: rgba(245, 158, 11, 0.5);
+      }
+      50% {
+        box-shadow: 0 0 22px 3px rgba(245, 158, 11, 0.35), inset 0 0 14px 0 rgba(245, 158, 11, 0.12);
+        border-color: rgba(245, 158, 11, 0.95);
+      }
+    }
+    .alert-pulse-warning {
+      animation: alertPulseAmber 2s ease-in-out infinite, gentleAlertShake 3.2s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite !important;
+    }
+    @keyframes alertPulseRed {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0), inset 0 0 0 0 rgba(239, 68, 68, 0);
+        border-color: rgba(239, 68, 68, 0.5);
+      }
+      50% {
+        box-shadow: 0 0 26px 4px rgba(239, 68, 68, 0.45), inset 0 0 18px 0 rgba(239, 68, 68, 0.18);
+        border-color: rgba(239, 68, 68, 0.98);
+      }
+    }
+    .alert-pulse-danger {
+      animation: alertPulseRed 1.6s ease-in-out infinite, gentleAlertShake 3.2s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite !important;
+    }
+  </style>
+</head>
+<body class="h-screen w-screen flex flex-col overflow-hidden transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100 bg-slate-100 text-black font-sans antialiased">
+
+  <!-- TOP HEADER (Single Screen Navigation & Key Metrics) -->
+  <header class="shrink-0 h-13 px-3 sm:px-5 border-b border-slate-300 dark:border-emerald-500/20 bg-white dark:bg-slate-950/90 backdrop-blur-md flex items-center justify-between gap-3 transition-colors shadow-xs">
+    <!-- Brand & AQI Badge -->
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-500 shadow-eco-glow shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <div class="flex items-center gap-2">
+        <h1 class="text-base font-black tracking-tight dark:text-white text-black whitespace-nowrap">
+          EcoSense AQI
+        </h1>
+        <div id="aqiBadge" class="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-black border bg-slate-100 dark:bg-emerald-500/10 text-black dark:text-emerald-400 border-slate-300 dark:border-emerald-500/40">
+          <span id="aqiGrade">EXCELLENT</span>
+          <span id="aqiScore" class="text-black dark:text-slate-400 font-bold">(AQI 28)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center Status (Clean status without temperature and humidity readings) -->
+    <div class="hidden md:flex items-center gap-2 text-xs font-mono dark:text-slate-400 text-black font-bold">
+      <span id="hdrStatusDot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
+      <span id="hdrStatusText" class="text-black dark:text-slate-400 font-bold">5 Environmental Sensors Active</span>
+    </div>
+
+    <!-- Controls: PROMINENT START / STOP DASHBOARD OPTION -->
+    <div class="flex items-center gap-2 shrink-0">
+      
+      <!-- START / STOP DASHBOARD BUTTON -->
+      <button id="startStopBtn" title="Stop live 5-second polling" class="px-3 py-1.5 text-xs font-black rounded-lg border flex items-center gap-1.5 transition-all shadow-xs cursor-pointer bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-500/15 dark:hover:bg-rose-500/25 dark:text-rose-300 dark:border-rose-500/40">
+        <svg class="w-3.5 h-3.5 fill-current text-rose-500" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" /></svg>
+        <span id="startStopText">Stop Dashboard</span>
+      </button>
+
+      <!-- Polling Status indicator -->
+      <div id="statusPill" class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-black dark:text-white font-bold">
+        <div id="statusDot" class="w-2 h-2 rounded-full bg-emerald-500 pulse-ring"></div>
+        <span id="sourceLabel" class="hidden lg:inline text-black dark:text-emerald-400 font-black">Mock Mode</span>
+        <span id="nextBlock" class="text-black dark:text-slate-300 font-bold">Next: <strong id="countdownText" class="text-black dark:text-emerald-400 font-black">5s</strong></span>
+      </div>
+
+      <!-- Immediate Poll Button -->
+      <button id="pollNowBtn" title="Poll now immediately" class="p-1.5 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-black dark:text-emerald-400 border border-slate-300 dark:border-slate-800 transition-colors shadow-xs cursor-pointer">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+      </button>
+
+      <!-- API Settings Modal Trigger -->
+      <button id="toggleApiModalBtn" title="Configure Render API endpoint" class="p-1.5 rounded-lg bg-white dark:bg-emerald-500/10 hover:bg-slate-200 dark:hover:bg-emerald-500/20 text-black dark:text-emerald-400 border border-slate-300 dark:border-emerald-500/30 transition-colors shadow-xs cursor-pointer">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      </button>
+
+      <!-- Theme Toggle (Defaults to Bright Mode) -->
+      <button id="themeToggleBtn" aria-label="Toggle Night/Day Mode" class="p-1.5 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-black dark:text-emerald-400 border border-slate-300 dark:border-slate-800 transition-colors shadow-xs cursor-pointer">
+        <svg id="moonIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+        </svg>
+        <svg id="sunIcon" class="w-3.5 h-3.5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 9h1m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- DASHBOARD MAIN CANVAS: ALL 5 READINGS VISIBLE IN SINGLE SCREEN -->
+  <main class="flex-1 min-h-0 p-2.5 sm:p-3 lg:p-4 flex flex-col gap-2.5 sm:gap-3 overflow-hidden">
+    
+    <!-- TOP ROW: THE 3 GAS GAUGES (CO2, CO, NO2) -->
+    <section class="flex-1 min-h-0 flex flex-col">
+      <div class="flex items-center justify-between pb-1 shrink-0">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-eco-glow"></span>
+          <!-- Block Heading: Pure Black font in bright mode -->
+          <h2 class="text-xs sm:text-sm font-black uppercase tracking-wider dark:text-white text-black sensor-heading">
+            Gas Concentration Gauges (Real-Time Sensors)
+          </h2>
+        </div>
+        <!-- Subheading: Pure Black font in bright mode -->
+        <span class="text-[11px] font-mono dark:text-slate-400 text-black font-black hidden sm:inline sensor-subheading">
+          5s Refresh · Half-Circle Dial Readout
+        </span>
+      </div>
+
+      <div class="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3">
+        
+        <!-- GAUGE 1: CO2 -->
+        <div id="cardCO2" class="rounded-xl p-3 flex flex-col justify-between dark:bg-slate-900/90 bg-white border border-slate-300 dark:border-emerald-500/20 shadow-eco-card hover:shadow-eco-card-hover transition-all duration-300 relative group overflow-hidden">
+          <div class="flex items-center justify-between shrink-0">
+            <div>
+              <!-- Sensor Name Heading: Pure Black font in bright mode -->
+              <h3 class="font-black text-xs sm:text-sm dark:text-slate-100 text-black sensor-name">CO₂ (Carbon Dioxide)</h3>
+              <!-- Subtitle Heading: Pure Black in bright mode -->
+              <p class="text-[10px] dark:text-slate-400 text-black font-bold sensor-subheading">Indoor Ventilation</p>
+            </div>
+            <span id="badgeCO2" class="text-[10px] font-mono px-2 py-0.5 rounded font-black dark:text-emerald-400 text-black bg-slate-100 dark:bg-emerald-500/15 border border-slate-300 dark:border-emerald-500/30 sensor-badge">0 - 2000 ppm</span>
+          </div>
+
+          <div class="flex-1 relative min-h-0 w-full flex items-center justify-center my-1">
+            <canvas id="gaugeCO2" class="max-h-full max-w-[220px]"></canvas>
+            <div class="absolute inset-0 flex flex-col items-center justify-end pb-0.5 pointer-events-none">
+              <span id="valCO2" class="text-2xl sm:text-3xl font-black font-mono tabular-nums dark:text-white text-black tracking-tight sensor-value">560</span>
+              <span id="unitCO2" class="text-[10px] font-black dark:text-emerald-400 text-black uppercase tracking-wider">ppm</span>
+            </div>
+          </div>
+
+          <div class="pt-1.5 border-t border-slate-300 dark:border-slate-800 flex justify-between items-center text-[10px] font-mono dark:text-slate-400 text-black font-black shrink-0">
+            <span id="co2Th1" class="sensor-threshold px-1.5 py-0.5 rounded transition-all">&lt;800 (Pure)</span>
+            <span id="co2Th2" class="sensor-threshold px-1.5 py-0.5 rounded transition-all">1000 - 1400</span>
+            <span id="co2Th3" class="sensor-threshold px-1.5 py-0.5 rounded transition-all">&gt;1500 (Drowsy)</span>
+          </div>
+        </div>
+
+        <!-- GAUGE 2: CO -->
+        <div id="cardCO" class="rounded-xl p-3 flex flex-col justify-between dark:bg-slate-900/90 bg-white border border-slate-300 dark:border-emerald-500/20 shadow-eco-card hover:shadow-eco-card-hover transition-all duration-300 relative group overflow-hidden">
+          <div class="flex items-center justify-between shrink-0">
+            <div>
+              <!-- Sensor Name Heading: Pure Black font in bright mode -->
+              <h3 class="font-black text-xs sm:text-sm dark:text-slate-100 text-black sensor-name">CO (Carbon Monoxide)</h3>
+              <!-- Subtitle Heading: Pure Black in bright mode -->
+              <p class="text-[10px] dark:text-slate-400 text-black font-bold sensor-subheading">Combustion Safety</p>
+            </div>
+            <span id="badgeCO" class="text-[10px] font-mono px-2 py-0.5 rounded font-black dark:text-emerald-400 text-black bg-slate-100 dark:bg-emerald-500/15 border border-slate-300 dark:border-emerald-500/30 sensor-badge">0 - 50 ppm</span>
+          </div>
+
+          <div class="flex-1 relative min-h-0 w-full flex items-center justify-center my-1">
+            <canvas id="gaugeCO" class="max-h-full max-w-[220px]"></canvas>
+            <div class="absolute inset-0 flex flex-col items-center justify-end pb-0.5 pointer-events-none">
+              <span id="valCO" class="text-2xl sm:text-3xl font-black font-mono tabular-nums dark:text-white text-black tracking-tight sensor-value">1.6</span>
+              <span id="unitCO" class="text-[10px] font-black dark:text-emerald-400 text-black uppercase tracking-wider">ppm</span>
+            </div>
+          </div>
+
+          <div class="pt-1.5 border-t border-slate-300 dark:border-slate-800 flex justify-between items-center text-[10px] font-mono dark:text-slate-400 text-black font-black shrink-0">
+            <span id="coTh1" class="sensor-threshold px-1.5 py-0.5 rounded transition-all">&lt;9.0 (Safe)</span>
+            <span id="coTh2" class="sensor-threshold px-1.5 py-0.5 rounded transition-all">10 - 25</span>
+            <span id="coTh3" class="sensor-threshold px-1.5 py-0.5 rounded transition-all">&gt;25 (Hazard)</span>
+          </div>
+        </div>
+
+        <!-- GAUGE 3: NO2 -->
+        <div id="cardNO2" class="rounded-xl p-3 flex flex-col justify-between dark:bg-slate-900/90 bg-white border border-slate-300 dark:border-emerald-500/20 shadow-eco-card hover:shadow-eco-card-hover transition-all duration-300 relative group overflow-hidden">
+          <div class="flex items-center justify-between shrink-0">
+            <div>
+              <!-- Sensor Name Heading: Pure Black font in bright mode -->
+              <h3 class="font-black text-xs sm:text-sm dark:text-slate-100 text-black sensor-name">NO₂ (Nitrogen Dioxide)</h3>
+              <!-- Subtitle Heading: Pure Black in bright mode -->
+              <p class="text-[10px] dark:text-slate-400 text-black font-bold sensor-subheading">Traffic & Emission</p>
+            </div>
+            <span id="badgeNO2" class="text-[10px] font-mono px-2 py-0.5 rounded font-black dark:text-emerald-400 text-black bg-slate-100 dark:bg-emerald-500/15 border border-slate-300 dark:border-emerald-500/30 sensor-badge">0 - 150 ppb</span>
+          </div>
+
+          <div class="flex-1 relative min-h-0 w-full flex items-center justify-center my-1">
+            <canvas id="gaugeNO2" class="max-h-full max-w-[220px]"></canvas>
+            <div class="absolute inset-0 flex flex-col items-center justify-end pb-0.5 pointer-events-none">
+              <span id="valNO2" class="text-2xl sm:text-3xl font-black font-mono tabular-nums dark:text-white text-black tracking-tight sensor-value">19.8</span>
+              <span id="unitNO2" class="text-[10px] font-black dark:text-emerald-400 text-black uppercase tracking-wider">ppb</span>
+            </div>
+          </div>
+
+          <div class="pt-1.5 border-t border-slate-300 dark:border-slate-800 flex justify-between items-center text-[10px] font-mono dark:text-slate-400 text-black font-black shrink-0">
+            <span id="no2Th1" class="sensor-threshold px-1.5 py-0.5 rounded transition-all">&lt;53 (Good)</span>
+            <span id="no2Th2" class="sensor-threshold px-1.5 py-0.5 rounded transition-all">54 - 100</span>
+            <span id="no2Th3" class="sensor-threshold px-1.5 py-0.5 rounded transition-all">&gt;100 (High)</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- BOTTOM ROW: THE 2 LINE GRAPHS (TEMPERATURE & HUMIDITY) SIDE-BY-SIDE -->
+    <section class="flex-1 min-h-0 flex flex-col">
+      <div class="flex items-center justify-between pb-1 shrink-0">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-eco-glow"></span>
+          <!-- Block Heading: Pure Black font in bright mode -->
+          <h2 class="text-xs sm:text-sm font-black uppercase tracking-wider dark:text-white text-black sensor-heading">
+            Environmental Trend Graphs (20-Point Buffer)
+          </h2>
+        </div>
+        <!-- Subheading: Pure Black font in bright mode -->
+        <span class="text-[11px] font-mono dark:text-emerald-400 text-black font-black hidden sm:inline sensor-subheading">
+          Bright Green Semi-Transparent Gradient Fill
+        </span>
+      </div>
+
+      <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-2.5 sm:gap-3">
+        
+        <!-- LINE GRAPH 1: Temperature -->
+        <div class="rounded-xl p-3 flex flex-col dark:bg-slate-900/90 bg-white border border-slate-300 dark:border-emerald-500/20 shadow-eco-card hover:shadow-eco-card-hover transition-all duration-300 overflow-hidden">
+          <div class="flex items-center justify-between mb-1 shrink-0">
+            <div class="flex items-center gap-2">
+              <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+              <!-- Sensor Name Heading: Pure Black font in bright mode -->
+              <span class="font-black text-xs sm:text-sm dark:text-slate-100 text-black sensor-name">
+                Temperature (°C)
+              </span>
+            </div>
+            <div class="text-xs font-mono font-black border border-slate-300 dark:border-emerald-500/30 px-2 py-0.5 rounded bg-slate-100 dark:bg-emerald-500/15 text-black dark:text-emerald-400 sensor-badge">
+              Live: <strong id="chartTempCur" class="text-black dark:text-emerald-400 font-black tabular-nums">24.2</strong> °C
+            </div>
+          </div>
+
+          <div class="flex-1 relative w-full min-h-0">
+            <canvas id="lineChartTemp"></canvas>
+          </div>
+        </div>
+
+        <!-- LINE GRAPH 2: Humidity -->
+        <div class="rounded-xl p-3 flex flex-col dark:bg-slate-900/90 bg-white border border-slate-300 dark:border-emerald-500/20 shadow-eco-card hover:shadow-eco-card-hover transition-all duration-300 overflow-hidden">
+          <div class="flex items-center justify-between mb-1 shrink-0">
+            <div class="flex items-center gap-2">
+              <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+              <!-- Sensor Name Heading: Pure Black font in bright mode -->
+              <span class="font-black text-xs sm:text-sm dark:text-slate-100 text-black sensor-name">
+                Relative Humidity (%)
+              </span>
+            </div>
+            <div class="text-xs font-mono font-black border border-slate-300 dark:border-emerald-500/30 px-2 py-0.5 rounded bg-slate-100 dark:bg-emerald-500/15 text-black dark:text-emerald-400 sensor-badge">
+              Live: <strong id="chartHumidityCur" class="text-black dark:text-emerald-400 font-black tabular-nums">48.5</strong> %
+            </div>
+          </div>
+
+          <div class="flex-1 relative w-full min-h-0">
+            <canvas id="lineChartHumidity"></canvas>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- RENDER API CONFIG MODAL -->
+  <div id="apiModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="border rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-3.5 bg-white dark:bg-slate-900 border-slate-300 dark:border-emerald-500/30 text-black dark:text-white">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
+        <h3 class="font-black text-sm text-black dark:text-emerald-400">Render REST API Endpoint Settings</h3>
+        <button id="closeApiModalBtn" class="text-slate-400 hover:text-black dark:hover:text-white p-1 cursor-pointer">✕</button>
+      </div>
+
+      <p class="text-xs text-black dark:text-slate-300 font-bold leading-relaxed">
+        Connect to your live backend deployed on Render (connected to MongoDB Atlas).
+      </p>
+
+      <div>
+        <label class="block text-xs font-black text-black dark:text-slate-300 mb-1">Render API URL</label>
+        <input type="url" id="apiEndpointInput" class="w-full font-mono text-xs px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-black dark:text-white font-bold" />
+      </div>
+
+      <div class="flex items-center gap-2">
+        <label class="flex items-center gap-2 text-xs text-black dark:text-slate-300 font-black cursor-pointer">
+          <input type="checkbox" id="forceMockCheckbox" class="rounded text-emerald-500" />
+          <span>Force Mock Generator Mode</span>
+        </label>
+      </div>
+
+      <!-- Visual Alert Testing Controls -->
+      <div class="p-2.5 rounded-lg border border-slate-300 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col gap-2">
+        <div class="text-xs font-black text-black dark:text-emerald-400 flex items-center justify-between">
+          <span>Simulate Sensor Alert Levels:</span>
+          <span class="text-[10px] font-mono text-slate-500 dark:text-slate-400">Shake & Pulse</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="simHazardBtn" type="button" class="px-2.5 py-1.5 text-xs rounded-lg bg-rose-500 hover:bg-rose-600 text-white font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1">
+            <span>🚨 Hazard Spike</span>
+          </button>
+          <button id="simWarningBtn" type="button" class="px-2.5 py-1.5 text-xs rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1">
+            <span>⚠️ Warning Spike</span>
+          </button>
+        </div>
+        <button id="simSafeBtn" type="button" class="w-full py-1 text-xs rounded-lg border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 font-bold transition-all cursor-pointer">
+          ✓ Reset to Safe Normal Readings
+        </button>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button id="saveApiBtn" class="px-4 py-1.5 text-xs rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black transition-colors cursor-pointer">Save & Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 🚀 RENDER API CONFIGURATION - REPLACE WITH YOUR ENDPOINT
+    // =========================================================================
+    let RENDER_API_ENDPOINT = "https://my-aqi-api.onrender.com/api/sensor-data";
+    let FORCE_MOCK_MODE = true; // Set to false to fetch from Render live
+    const MAX_DATA_POINTS = 20;
+
+    // Theme state: Defaults to Bright Mode (false) as requested
+    let isDarkTheme = false;
+
+    // Polling State: Start / Stop Dashboard control
+    let isPollingActive = true;
+    let pollIntervalTimer = null;
+    let countdownRemaining = 5;
+
+    // Current Sensor Data
+    let currentData = {
+      temperature: 24.2,
+      humidity: 48.5,
+      co2: 560,
+      co: 1.6,
+      no2: 19.8,
+      timestamp: new Date().toISOString()
+    };
+
+    let gaugeCO2Chart, gaugeCOChart, gaugeNO2Chart;
+    let lineTempChart, lineHumidityChart;
+
+    // Precision needle indicator plugin for half-circle gauges
+    const gaugeNeedlePlugin = {
+      id: 'gaugeNeedle',
+      afterDatasetDraw(chart, args) {
+        if (args.index !== 0) return;
+        const meta = chart.getDatasetMeta(0);
+        if (!meta || !meta.data || !meta.data[0]) return;
+        const arc = meta.data[0];
+        if (!arc.getProps) return;
+
+        const props = arc.getProps(['x', 'y', 'innerRadius', 'outerRadius', 'endAngle'], true);
+        if (!props || typeof props.endAngle !== 'number') return;
+        const { x, y, innerRadius, outerRadius, endAngle } = props;
+
+        const { ctx } = chart;
+        ctx.save();
+
+        const needleInnerR = innerRadius - 3;
+        const needleOuterR = outerRadius + 5;
+
+        const x1 = x + needleInnerR * Math.cos(endAngle);
+        const y1 = y + needleInnerR * Math.sin(endAngle);
+        const x2 = x + needleOuterR * Math.cos(endAngle);
+        const y2 = y + needleOuterR * Math.sin(endAngle);
+
+        const activeColor = chart.data.datasets[0].backgroundColor?.[0] || '#10b981';
+
+        // Glowing needle line across the arc
+        const isDanger = activeColor === '#ef4444';
+        const isWarning = activeColor === '#f59e0b';
+
+        // Glowing needle line across the arc with alert color glow
+        ctx.shadowColor = isDanger ? 'rgba(239, 68, 68, 0.95)' : (isWarning ? 'rgba(245, 158, 11, 0.95)' : 'rgba(16, 185, 129, 0.75)');
+        ctx.shadowBlur = isDanger || isWarning ? 12 : 8;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+
+        // High-visibility needle pointer tip bead
+        ctx.shadowColor = isDanger ? 'rgba(239, 68, 68, 1)' : (isWarning ? 'rgba(245, 158, 11, 1)' : 'rgba(16, 185, 129, 0.9)');
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = activeColor;
+        ctx.beginPath();
+        ctx.arc(x2, y2, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Visual alert beacon ring when exceeding safe limits
+        if (isDanger || isWarning) {
+          ctx.beginPath();
+          ctx.arc(x2, y2, 8, 0, Math.PI * 2);
+          ctx.fillStyle = isDanger ? 'rgba(239, 68, 68, 0.35)' : 'rgba(245, 158, 11, 0.35)';
+          ctx.fill();
+        }
+
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.restore();
+      }
+    };
+
+    const SENSOR_SAFE_LIMITS = {
+      co2: { warning: 1000, danger: 1500, range: '0 - 2000 ppm', warnText: '⚠️ ALERT (>1000)', dangerText: '⚠️ HAZARD (>1500)' },
+      co: { warning: 9.0, danger: 25.0, range: '0 - 50 ppm', warnText: '⚠️ ALERT (≥9.0)', dangerText: '⚠️ HAZARD (≥25)' },
+      no2: { warning: 54.0, danger: 100.0, range: '0 - 150 ppb', warnText: '⚠️ ALERT (≥54)', dangerText: '⚠️ HAZARD (>100)' }
+    };
+
+    function getAlertLevel(sensor, val) {
+      const l = SENSOR_SAFE_LIMITS[sensor];
+      if (val >= l.danger) return 'danger';
+      if (val >= l.warning) return 'warning';
+      return 'safe';
+    }
+
+    function createHalfGauge(canvasId, initialVal, minVal, maxVal, sensorType) {
+      const ctx = document.getElementById(canvasId).getContext('2d');
+      const percentage = Math.min(Math.max((initialVal - minVal) / (maxVal - minVal), 0), 1);
+      const alert = getAlertLevel(sensorType, initialVal);
+      let initialColor = '#10b981';
+      if (alert === 'danger') initialColor = '#ef4444';
+      else if (alert === 'warning') initialColor = '#f59e0b';
+      
+      return new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          datasets: [{
+            data: [percentage * 100, (1 - percentage) * 100],
+            backgroundColor: [
+              initialColor,
+              isDarkTheme ? 'rgba(30, 41, 59, 0.45)' : 'rgba(203, 213, 225, 0.8)'
+            ],
+            borderWidth: 0,
+            borderRadius: [6, 0]
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          circumference: 180,
+          rotation: 270,
+          cutout: '75%',
+          animation: {
+            duration: 1800,
+            easing: 'easeOutCubic'
+          },
+          plugins: { tooltip: { enabled: false } }
+        },
+        plugins: [gaugeNeedlePlugin]
+      });
+    }
+
+    function updateHalfGauge(chart, val, minVal, maxVal, sensorType) {
+      if (!chart) return;
+      const pct = Math.min(Math.max((val - minVal) / (maxVal - minVal), 0), 1);
+      chart.data.datasets[0].data = [pct * 100, (1 - pct) * 100];
+      
+      const alert = getAlertLevel(sensorType, val);
+      let activeColor = '#10b981';
+      if (alert === 'danger') activeColor = '#ef4444';
+      else if (alert === 'warning') activeColor = '#f59e0b';
+
+      chart.data.datasets[0].backgroundColor = [
+        activeColor,
+        isDarkTheme ? 'rgba(30, 41, 59, 0.45)' : 'rgba(203, 213, 225, 0.8)'
+      ];
+      // Trigger fluid easing animation
+      chart.update();
+    }
+
+    function createLineGraph(canvasId, label, unit, initialHistory) {
+      const ctx = document.getElementById(canvasId).getContext('2d');
+      const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+      gradient.addColorStop(0, 'rgba(16, 185, 129, 0.38)');
+      gradient.addColorStop(0.65, 'rgba(16, 185, 129, 0.10)');
+      gradient.addColorStop(1, 'rgba(16, 185, 129, 0.00)');
+
+      return new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: initialHistory.labels,
+          datasets: [{
+            label: label,
+            data: initialHistory.values,
+            borderColor: '#10b981',
+            borderWidth: 2.2,
+            pointBackgroundColor: '#10b981',
+            pointBorderColor: isDarkTheme ? '#090d16' : '#ffffff',
+            pointBorderWidth: 1.5,
+            pointRadius: 2.5,
+            pointHoverRadius: 5,
+            fill: true,
+            backgroundColor: gradient,
+            tension: 0.35
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 400, easing: 'easeInOutQuad' },
+          interaction: { intersect: false, mode: 'index' },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: isDarkTheme ? '#0f172a' : '#ffffff',
+              titleColor: isDarkTheme ? '#94a3b8' : '#000000',
+              bodyColor: isDarkTheme ? '#34d399' : '#000000',
+              borderColor: 'rgba(16, 185, 129, 0.4)',
+              borderWidth: 1.5,
+              padding: 8,
+              displayColors: false,
+              callbacks: {
+                title: function(items) { return items.length > 0 ? 'Time: ' + items[0].label : ''; },
+                label: function(ctx) { return `${ctx.dataset.label}: ${Number(ctx.parsed.y).toFixed(2)} ${unit}`; }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: isDarkTheme ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.08)' },
+              ticks: {
+                color: isDarkTheme ? '#64748b' : '#000000',
+                font: { family: '"JetBrains Mono"', size: 9, weight: 700 },
+                maxTicksLimit: 6
+              }
+            },
+            y: {
+              grid: { color: isDarkTheme ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.08)' },
+              ticks: {
+                precision: 0,
+                color: isDarkTheme ? '#64748b' : '#000000',
+                font: { family: '"JetBrains Mono"', size: 9, weight: 700 },
+                callback: function(v) { return Math.round(Number(v)) + ' ' + unit; }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function generateMockData() {
+      const tempDelta = (Math.random() - 0.48) * 0.4;
+      const humDelta = (Math.random() - 0.5) * 0.8;
+      const co2Delta = (Math.random() - 0.48) * 25;
+      const coDelta = (Math.random() - 0.5) * 0.15;
+      const no2Delta = (Math.random() - 0.5) * 0.9;
+
+      return {
+        temperature: +(Math.min(Math.max(currentData.temperature + tempDelta, 18.0), 32.0)).toFixed(1),
+        humidity: +(Math.min(Math.max(currentData.humidity + humDelta, 30.0), 80.0)).toFixed(1),
+        co2: Math.round(Math.min(Math.max(currentData.co2 + co2Delta, 400), 1600)),
+        co: +(Math.min(Math.max(currentData.co + coDelta, 0.2), 25.0)).toFixed(1),
+        no2: +(Math.min(Math.max(currentData.no2 + no2Delta, 5.0), 95.0)).toFixed(1),
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    function generateSeedHistory(baseVal, variance, count = 20) {
+      const labels = [];
+      const values = [];
+      const now = Date.now();
+      for (let i = count - 1; i >= 0; i--) {
+        const time = new Date(now - i * 5000);
+        labels.push(time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        values.push(+(baseVal + (Math.sin(i / 2) * variance) + ((Math.random() - 0.5) * variance * 0.5)).toFixed(1));
+      }
+      return { labels, values };
+    }
+
+    let currentAnimFrame = null;
+    let animatedGaugeVals = {
+      co2: 560,
+      co: 1.6,
+      no2: 19.8
+    };
+
+    function animateGaugeNumbers(targetCO2, targetCO, targetNO2) {
+      if (currentAnimFrame) cancelAnimationFrame(currentAnimFrame);
+      const startCO2 = animatedGaugeVals.co2;
+      const startCO = animatedGaugeVals.co;
+      const startNO2 = animatedGaugeVals.no2;
+      const startTime = performance.now();
+      const duration = 1800; // 1.8s fluid easing matching gauge transition
+
+      function step(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+
+        animatedGaugeVals.co2 = Math.round(startCO2 + (targetCO2 - startCO2) * ease);
+        animatedGaugeVals.co = +(startCO + (targetCO - startCO) * ease).toFixed(1);
+        animatedGaugeVals.no2 = +(startNO2 + (targetNO2 - startNO2) * ease).toFixed(1);
+
+        document.getElementById('valCO2').textContent = animatedGaugeVals.co2;
+        document.getElementById('valCO').textContent = animatedGaugeVals.co;
+        document.getElementById('valNO2').textContent = animatedGaugeVals.no2;
+
+        if (progress < 1) {
+          currentAnimFrame = requestAnimationFrame(step);
+        }
+      }
+      currentAnimFrame = requestAnimationFrame(step);
+    }
+
+    function updateGaugeCardAlert(cardId, badgeId, unitId, valId, sensorType, val, th1Id, th2Id, th3Id) {
+      const card = document.getElementById(cardId);
+      const badge = document.getElementById(badgeId);
+      const unit = document.getElementById(unitId);
+      const valElem = document.getElementById(valId);
+      const th1 = document.getElementById(th1Id);
+      const th2 = document.getElementById(th2Id);
+      const th3 = document.getElementById(th3Id);
+      if (!card || !badge) return;
+      const alert = getAlertLevel(sensorType, val);
+      const cfg = SENSOR_SAFE_LIMITS[sensorType];
+
+      if (th1) th1.className = 'sensor-threshold px-1.5 py-0.5 rounded transition-all opacity-65 font-bold';
+      if (th2) th2.className = 'sensor-threshold px-1.5 py-0.5 rounded transition-all opacity-65 font-bold';
+      if (th3) th3.className = 'sensor-threshold px-1.5 py-0.5 rounded transition-all opacity-65 font-bold';
+
+      if (alert === 'danger') {
+        card.className = isDarkTheme
+          ? 'rounded-xl p-3 flex flex-col justify-between alert-pulse-danger bg-rose-950/20 border-rose-500/80 shadow-[0_0_25px_rgba(239,68,68,0.35)] relative group overflow-hidden'
+          : 'rounded-xl p-3 flex flex-col justify-between alert-pulse-danger bg-rose-50/70 border-rose-500 shadow-[0_0_20px_rgba(239,68,68,0.25)] relative group overflow-hidden';
+        badge.className = isDarkTheme
+          ? 'text-[10px] font-mono px-2 py-0.5 rounded font-black border flex items-center gap-1.5 animate-pulse bg-rose-500/25 border-rose-500/60 text-rose-300'
+          : 'text-[10px] font-mono px-2 py-0.5 rounded font-black border flex items-center gap-1.5 animate-pulse bg-rose-100 border-rose-400 text-rose-950';
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span><span>${cfg.dangerText}</span>`;
+        if (valElem) valElem.style.color = '#ef4444';
+        if (unit) unit.style.color = '#ef4444';
+        if (th3) th3.className = isDarkTheme
+          ? 'sensor-threshold px-1.5 py-0.5 rounded transition-all bg-rose-500/25 text-rose-300 border border-rose-500/50 font-black animate-pulse'
+          : 'sensor-threshold px-1.5 py-0.5 rounded transition-all bg-rose-100 text-black border border-rose-400 font-black animate-pulse';
+      } else if (alert === 'warning') {
+        card.className = isDarkTheme
+          ? 'rounded-xl p-3 flex flex-col justify-between alert-pulse-warning bg-amber-950/20 border-amber-500/70 shadow-[0_0_20px_rgba(245,158,11,0.25)] relative group overflow-hidden'
+          : 'rounded-xl p-3 flex flex-col justify-between alert-pulse-warning bg-amber-50/70 border-amber-500 shadow-[0_0_18px_rgba(245,158,11,0.20)] relative group overflow-hidden';
+        badge.className = isDarkTheme
+          ? 'text-[10px] font-mono px-2 py-0.5 rounded font-black border flex items-center gap-1.5 animate-pulse bg-amber-500/20 border-amber-500/60 text-amber-300'
+          : 'text-[10px] font-mono px-2 py-0.5 rounded font-black border flex items-center gap-1.5 animate-pulse bg-amber-100 border-amber-400 text-amber-950';
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span><span>${cfg.warnText}</span>`;
+        if (valElem) valElem.style.color = '#f59e0b';
+        if (unit) unit.style.color = '#f59e0b';
+        if (th2) th2.className = isDarkTheme
+          ? 'sensor-threshold px-1.5 py-0.5 rounded transition-all bg-amber-500/25 text-amber-300 border border-amber-500/50 font-black animate-pulse'
+          : 'sensor-threshold px-1.5 py-0.5 rounded transition-all bg-amber-100 text-black border border-amber-400 font-black animate-pulse';
+      } else {
+        card.className = isDarkTheme
+          ? 'rounded-xl p-3 flex flex-col justify-between dark:bg-slate-900/90 border border-slate-300 dark:border-emerald-500/20 shadow-eco-card hover:shadow-eco-card-hover transition-all duration-300 relative group overflow-hidden'
+          : 'rounded-xl p-3 flex flex-col justify-between bg-white border border-slate-300 shadow-eco-card hover:shadow-eco-card-hover transition-all duration-300 relative group overflow-hidden';
+        badge.className = 'text-[10px] font-mono px-2 py-0.5 rounded font-black dark:text-emerald-400 text-black bg-slate-100 dark:bg-emerald-500/15 border border-slate-300 dark:border-emerald-500/30 sensor-badge';
+        badge.textContent = cfg.range;
+        if (valElem) valElem.style.color = isDarkTheme ? '#ffffff' : '#000000';
+        if (unit) unit.style.color = isDarkTheme ? '#34d399' : '#000000';
+        if (th1) th1.className = isDarkTheme
+          ? 'sensor-threshold px-1.5 py-0.5 rounded transition-all bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-black'
+          : 'sensor-threshold px-1.5 py-0.5 rounded transition-all bg-emerald-50 text-black border border-emerald-300 font-black';
+      }
+    }
+
+    function applySensorDataToUI(data) {
+      currentData = data;
+      const nowStr = new Date(data.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+      // Animate displayed numbers fluidly with easeOutCubic
+      animateGaugeNumbers(data.co2, data.co, data.no2);
+
+      updateHalfGauge(gaugeCO2Chart, data.co2, 0, 2000, 'co2');
+      updateHalfGauge(gaugeCOChart, data.co, 0, 50, 'co');
+      updateHalfGauge(gaugeNO2Chart, data.no2, 0, 150, 'no2');
+
+      updateGaugeCardAlert('cardCO2', 'badgeCO2', 'unitCO2', 'valCO2', 'co2', data.co2, 'co2Th1', 'co2Th2', 'co2Th3');
+      updateGaugeCardAlert('cardCO', 'badgeCO', 'unitCO', 'valCO', 'co', data.co, 'coTh1', 'coTh2', 'coTh3');
+      updateGaugeCardAlert('cardNO2', 'badgeNO2', 'unitNO2', 'valNO2', 'no2', data.no2, 'no2Th1', 'no2Th2', 'no2Th3');
+
+      if (lineTempChart) {
+        lineTempChart.data.labels.push(nowStr);
+        lineTempChart.data.datasets[0].data.push(data.temperature);
+        if (lineTempChart.data.labels.length > MAX_DATA_POINTS) {
+          lineTempChart.data.labels.shift();
+          lineTempChart.data.datasets[0].data.shift();
+        }
+        lineTempChart.update('none');
+      }
+
+      if (lineHumidityChart) {
+        lineHumidityChart.data.labels.push(nowStr);
+        lineHumidityChart.data.datasets[0].data.push(data.humidity);
+        if (lineHumidityChart.data.labels.length > MAX_DATA_POINTS) {
+          lineHumidityChart.data.labels.shift();
+          lineHumidityChart.data.datasets[0].data.shift();
+        }
+        lineHumidityChart.update('none');
+      }
+
+      document.getElementById('chartTempCur').textContent = Number(data.temperature).toFixed(2);
+      document.getElementById('chartHumidityCur').textContent = Number(data.humidity).toFixed(2);
+
+      const score = Math.round((data.co2 / 20) + (data.co * 8) + (data.no2 * 0.8));
+      const gradeElem = document.getElementById('aqiGrade');
+      const scoreElem = document.getElementById('aqiScore');
+      scoreElem.textContent = `(AQI ${score})`;
+
+      if (score <= 45) {
+        gradeElem.textContent = 'EXCELLENT';
+        gradeElem.className = isDarkTheme ? 'font-black text-emerald-400' : 'font-black text-black';
+      } else if (score <= 75) {
+        gradeElem.textContent = 'GOOD';
+        gradeElem.className = isDarkTheme ? 'font-black text-emerald-300' : 'font-black text-black';
+      } else if (score <= 110) {
+        gradeElem.textContent = 'MODERATE';
+        gradeElem.className = isDarkTheme ? 'font-black text-amber-400' : 'font-black text-black';
+      } else {
+        gradeElem.textContent = 'UNHEALTHY';
+        gradeElem.className = isDarkTheme ? 'font-black text-red-400' : 'font-black text-black';
+      }
+    }
+
+    async function fetchSensorTelemetry() {
+      const sourceLabel = document.getElementById('sourceLabel');
+      const statusDot = document.getElementById('statusDot');
+
+      if (FORCE_MOCK_MODE) {
+        sourceLabel.textContent = 'Mock Mode';
+        sourceLabel.className = isDarkTheme ? 'hidden lg:inline font-black text-emerald-400' : 'hidden lg:inline font-black text-black';
+        statusDot.className = 'w-2 h-2 rounded-full bg-emerald-500 pulse-ring';
+        applySensorDataToUI(generateMockData());
+        return;
+      }
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const response = await fetch(RENDER_API_ENDPOINT, { method: 'GET', headers: { 'Accept': 'application/json' }, signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+        
+        const cleanData = {
+          temperature: +(payload.temperature ?? payload.temp ?? 24.0),
+          humidity: +(payload.humidity ?? payload.hum ?? 50.0),
+          co2: +(payload.co2 ?? payload.carbon_dioxide ?? 550),
+          co: +(payload.co ?? payload.carbon_monoxide ?? 1.5),
+          no2: +(payload.no2 ?? payload.nitrogen_dioxide ?? 20.0),
+          timestamp: payload.timestamp || new Date().toISOString()
+        };
+
+        sourceLabel.textContent = 'Render Live';
+        sourceLabel.className = isDarkTheme ? 'hidden lg:inline font-black text-emerald-400' : 'hidden lg:inline font-black text-black';
+        statusDot.className = 'w-2 h-2 rounded-full bg-emerald-500 pulse-ring';
+        applySensorDataToUI(cleanData);
+      } catch (err) {
+        sourceLabel.textContent = 'API Fallback';
+        sourceLabel.className = 'hidden lg:inline font-black text-black';
+        statusDot.className = 'w-2 h-2 rounded-full bg-amber-500';
+        applySensorDataToUI(generateMockData());
+      }
+    }
+
+    // Polling controller: Start and Stop Option
+    function startRealtimePolling() {
+      if (pollIntervalTimer) clearInterval(pollIntervalTimer);
+      countdownRemaining = 5;
+      document.getElementById('countdownText').textContent = `${countdownRemaining}s`;
+
+      pollIntervalTimer = setInterval(() => {
+        if (!isPollingActive) return;
+        countdownRemaining--;
+        if (countdownRemaining <= 0) {
+          countdownRemaining = 5;
+          fetchSensorTelemetry();
+        }
+        document.getElementById('countdownText').textContent = `${countdownRemaining}s`;
+      }, 1000);
+    }
+
+    function toggleStartStop() {
+      const btn = document.getElementById('startStopBtn');
+      const text = document.getElementById('startStopText');
+      const statusPill = document.getElementById('statusPill');
+      const statusDot = document.getElementById('statusDot');
+      const sourceLabel = document.getElementById('sourceLabel');
+      const nextBlock = document.getElementById('nextBlock');
+      const hdrStatusDot = document.getElementById('hdrStatusDot');
+      const hdrStatusText = document.getElementById('hdrStatusText');
+
+      if (isPollingActive) {
+        // Stop Dashboard
+        isPollingActive = false;
+        btn.className = 'px-3 py-1.5 text-xs font-black rounded-lg border flex items-center gap-1.5 transition-all shadow-xs cursor-pointer bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-600 shadow-sm';
+        btn.innerHTML = `<svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Start Dashboard</span>`;
+        btn.title = "Start live 5-second polling";
+        
+        statusDot.className = 'w-2 h-2 rounded-full bg-amber-500';
+        sourceLabel.textContent = 'STOPPED';
+        sourceLabel.className = isDarkTheme ? 'hidden lg:inline font-black text-amber-400' : 'hidden lg:inline font-black text-black';
+        nextBlock.innerHTML = `<strong class="font-black text-black dark:text-amber-300">PAUSED</strong>`;
+        
+        hdrStatusDot.className = 'w-2 h-2 rounded-full bg-amber-500';
+        hdrStatusText.textContent = 'Dashboard Paused';
+      } else {
+        // Start Dashboard
+        isPollingActive = true;
+        btn.className = 'px-3 py-1.5 text-xs font-black rounded-lg border flex items-center gap-1.5 transition-all shadow-xs cursor-pointer bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-500/15 dark:hover:bg-rose-500/25 dark:text-rose-300 dark:border-rose-500/40';
+        btn.innerHTML = `<svg class="w-3.5 h-3.5 fill-current text-rose-500" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" /></svg><span>Stop Dashboard</span>`;
+        btn.title = "Stop live 5-second polling";
+
+        statusDot.className = 'w-2 h-2 rounded-full bg-emerald-500 pulse-ring';
+        sourceLabel.textContent = FORCE_MOCK_MODE ? 'Mock Mode' : 'Render Live';
+        sourceLabel.className = isDarkTheme ? 'hidden lg:inline font-black text-emerald-400' : 'hidden lg:inline font-black text-black';
+        nextBlock.innerHTML = `Next: <strong id="countdownText" class="text-black dark:text-emerald-400 font-black">5s</strong>`;
+        
+        hdrStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+        hdrStatusText.textContent = '5 Sensors Active';
+
+        countdownRemaining = 5;
+        fetchSensorTelemetry();
+      }
+    }
+
+    document.getElementById('startStopBtn').addEventListener('click', toggleStartStop);
+    document.getElementById('pollNowBtn').addEventListener('click', () => {
+      countdownRemaining = 5;
+      fetchSensorTelemetry();
+    });
+
+    // Theme toggle
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    const sunIcon = document.getElementById('sunIcon');
+    const moonIcon = document.getElementById('moonIcon');
+
+    function applyTheme(isDark) {
+      isDarkTheme = isDark;
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+        document.body.classList.remove('bg-slate-100', 'text-black');
+        document.body.classList.add('bg-slate-950', 'text-slate-100');
+        sunIcon.classList.remove('hidden');
+        moonIcon.classList.add('hidden');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.body.classList.remove('bg-slate-950', 'text-slate-100');
+        document.body.classList.add('bg-slate-100', 'text-black');
+        sunIcon.classList.add('hidden');
+        moonIcon.classList.remove('hidden');
+      }
+      
+      // Update chart tick colors
+      if (lineTempChart) {
+        lineTempChart.options.scales.x.ticks.color = isDark ? '#64748b' : '#000000';
+        lineTempChart.options.scales.y.ticks.color = isDark ? '#64748b' : '#000000';
+        lineTempChart.update();
+      }
+      if (lineHumidityChart) {
+        lineHumidityChart.options.scales.x.ticks.color = isDark ? '#64748b' : '#000000';
+        lineHumidityChart.options.scales.y.ticks.color = isDark ? '#64748b' : '#000000';
+        lineHumidityChart.update();
+      }
+    }
+
+    themeToggleBtn.addEventListener('click', () => applyTheme(!isDarkTheme));
+
+    // Modal
+    const apiModal = document.getElementById('apiModal');
+    const toggleApiModalBtn = document.getElementById('toggleApiModalBtn');
+    const closeApiModalBtn = document.getElementById('closeApiModalBtn');
+    const saveApiBtn = document.getElementById('saveApiBtn');
+    const apiEndpointInput = document.getElementById('apiEndpointInput');
+    const forceMockCheckbox = document.getElementById('forceMockCheckbox');
+
+    toggleApiModalBtn.addEventListener('click', () => {
+      apiModal.classList.remove('hidden');
+      apiEndpointInput.value = RENDER_API_ENDPOINT;
+      forceMockCheckbox.checked = FORCE_MOCK_MODE;
+    });
+
+    closeApiModalBtn.addEventListener('click', () => apiModal.classList.add('hidden'));
+
+    saveApiBtn.addEventListener('click', () => {
+      RENDER_API_ENDPOINT = apiEndpointInput.value.trim();
+      FORCE_MOCK_MODE = forceMockCheckbox.checked;
+      apiModal.classList.add('hidden');
+      fetchSensorTelemetry();
+    });
+
+    document.getElementById('simHazardBtn').addEventListener('click', () => {
+      applySensorDataToUI({
+        temperature: 25.4,
+        humidity: 49.0,
+        co2: 1650,
+        co: 28.5,
+        no2: 112.0,
+        timestamp: new Date().toISOString()
+      });
+      apiModal.classList.add('hidden');
+    });
+
+    document.getElementById('simWarningBtn').addEventListener('click', () => {
+      applySensorDataToUI({
+        temperature: 24.2,
+        humidity: 48.5,
+        co2: 1150,
+        co: 12.0,
+        no2: 68.0,
+        timestamp: new Date().toISOString()
+      });
+      apiModal.classList.add('hidden');
+    });
+
+    document.getElementById('simSafeBtn').addEventListener('click', () => {
+      applySensorDataToUI({
+        temperature: 23.8,
+        humidity: 46.2,
+        co2: 560,
+        co: 1.6,
+        no2: 21.0,
+        timestamp: new Date().toISOString()
+      });
+      apiModal.classList.add('hidden');
+    });
+
+    apiModal.addEventListener('click', (e) => {
+      if (e.target === apiModal) apiModal.classList.add('hidden');
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      gaugeCO2Chart = createHalfGauge('gaugeCO2', currentData.co2, 0, 2000, 'co2');
+      gaugeCOChart = createHalfGauge('gaugeCO', currentData.co, 0, 50, 'co');
+      gaugeNO2Chart = createHalfGauge('gaugeNO2', currentData.no2, 0, 150, 'no2');
+
+      const tempHistory = generateSeedHistory(23.5, 0.8, 20);
+      const humHistory = generateSeedHistory(47.0, 2.5, 20);
+      lineTempChart = createLineGraph('lineChartTemp', 'Temperature', '°C', tempHistory);
+      lineHumidityChart = createLineGraph('lineChartHumidity', 'Humidity', '%', humHistory);
+
+      applySensorDataToUI(currentData);
+      startRealtimePolling();
+    });
+  </script>
+</body>
+</html>
